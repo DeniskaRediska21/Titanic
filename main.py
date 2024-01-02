@@ -104,6 +104,7 @@ def get_prediction(model,input,device = 'cpu'):
 def split_data(Path, input_tag, output_tag = None):
     data = pandas.read_csv(Path)
 
+    
     input = (data[input_tag].to_numpy())
     
     if output_tag is not None:
@@ -125,6 +126,8 @@ def preprocess_data(all_data, pca = None, mean_ = None, norm = None):
     all_data[all_data[:,8] == 'C',8] = 1
     all_data[all_data[:,8] == 'Q',8] = 2
 
+
+    # if both age and cabin are unnown
     all_data = np.column_stack((all_data,[math.isnan(age) for age in all_data[:,3]] and [math.isnan(entry) for entry in all_data[:,8]]))
     # all_data = np.column_stack((all_data,[math.isnan(entry) for entry in all_data[:,8]]))
     # all_data = np.column_stack((all_data,[math.isnan(age) for age in all_data[:,3]]))
@@ -134,20 +137,34 @@ def preprocess_data(all_data, pca = None, mean_ = None, norm = None):
     # Cabin data to 1 if data exists, 0 otherwise
     all_data[:,7] = [int(cabin is np.nan) for cabin in all_data[:,7]]
     
+    # fair NaN handling
     all_data[[math.isnan(entry) for entry in all_data[:,6]],6] = np.nanmean(all_data[:,6])
     
-    # for entry in all_data:
-    #     all_data[math.isnan(entry[6]),6] = np.nanmean(all_data[all_data[:,1] == entry[1],6])
     
+
+    # One hot encoding of embarked
+    embarked = pd.get_dummies(all_data[:,8])
+    
+    # Embarked Nan handling
     all_data[[math.isnan(entry) for entry in all_data[:,8]],8] = np.nanmean(all_data[:,8])
 
 
     # If the age  is nan replace it with mean age of passengers with the same sex ang ticket class
     all_data[[math.isnan(age) for age in all_data[:,3]],3] = [np.nanmean(all_data[np.squeeze(np.all([[all_data[:,0] == entry[0]] , [all_data[:,2] == entry[2]]],axis = 0)),3]) for entry in all_data if math.isnan(entry[3])]
-
-
-    input = np.delete(all_data,1,axis = 1).astype(np.float64)
     
+    # One hot encoding
+    ticket_class = pd.get_dummies(all_data[:,0])
+    # embarked = pd.get_dummies(all_data[:,8])
+    
+    all_data = np.delete(all_data,8,axis = 1)
+    all_data = np.delete(all_data,1,axis = 1)
+    all_data = np.delete(all_data,0,axis = 1).astype(np.float64)
+    
+    
+    input = np.column_stack((all_data, ticket_class, embarked))
+    # print(np.shape(embarked))
+    # print(np.shape(ticket_class))
+    # normal and mean
     if mean_ is None:
         mean_ = np.mean(input,axis = 0)
         
@@ -179,8 +196,8 @@ model = get_model(n_inputs = np.shape(input)[1])
 model = train_model(model,
                     input,
                     output,
-                    Epocs=30000, 
-                    lr = 0.0001,
+                    Epocs=10000, 
+                    lr = 0.00005,
                     weights=[0.38,1], 
                     val_split=0.3,
                     l2_lambda=0.0000001,
