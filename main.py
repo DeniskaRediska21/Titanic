@@ -1,11 +1,11 @@
 import math
 import numpy as np
+import pandas as pd
 import pandas
 import torch
 import torch.optim as optim
 from sklearn.decomposition import PCA
 from torch import nn as nn
-
 
 def get_model(n_inputs,device = 'cpu'):
     model = nn.Sequential(
@@ -34,7 +34,9 @@ def train_model(model, input_train,output_train,device = 'cpu', Epocs=10,lr=0.7,
     
     input_train = input_train[I[n:]].to(device)
     output_train = output_train[I[n:]].to(device)
+    loss_fn = loss_fn.to(device)
     
+    model.to(device)
     min_train_val_loss=np.inf
     # move the tensor to gpu
     optimizer=optim.SGD(model.parameters(), lr=lr, momentum=momentum)
@@ -43,7 +45,6 @@ def train_model(model, input_train,output_train,device = 'cpu', Epocs=10,lr=0.7,
     # optimizer=optim.Adadelta(model.parameters(), lr=lr)
     # optimizer=optim.Adamax(model.parameters(), lr=lr/20)
     # optimizer=optim.RMSprop(model.parameters(), lr=lr/10)
-    
     optimizer.zero_grad()
     model_log=[]
 
@@ -184,6 +185,13 @@ def preprocess_data(all_data, pca = None, mean_ = None, norm = None):
     return input, norm,mean_,pca
 
 
+if torch.cuda.is_available():
+    device = 'cuda'
+else:
+    device = 'cpu'
+
+print(device)
+
 all_data, output = split_data(Path = 'Data/train.csv',
                               input_tag = ['Pclass', 'Name', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Cabin', 'Embarked'], 
                               output_tag = ['Survived'])
@@ -191,7 +199,7 @@ all_data, output = split_data(Path = 'Data/train.csv',
 
 input, norm,mean_,pca = preprocess_data(all_data)
 
-model = get_model(n_inputs = np.shape(input)[1])
+model = get_model(n_inputs = np.shape(input)[1], device= device)
 
 model = train_model(model,
                     input,
@@ -201,7 +209,8 @@ model = train_model(model,
                     weights=[0.38,1], 
                     val_split=0.3,
                     l2_lambda=0.0000001,
-                    momentum = 0.9,)
+                    momentum = 0.9,
+                    device = device,)
 # weights=[0.38,1]
 
 
@@ -211,7 +220,7 @@ all_data_test,PID  = split_data(Path = 'Data/test.csv',
 
 input_test,_,_,_ = preprocess_data(all_data_test, pca = pca, mean_ = mean_, norm = norm)
 
-results = get_prediction(model,input_test)
+results = get_prediction(model,input_test,device=device)
 
 results = np.column_stack((np.squeeze(PID),np.squeeze(results)))
 
